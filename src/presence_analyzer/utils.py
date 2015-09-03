@@ -83,6 +83,52 @@ def group_by_weekday(items):
     return result
 
 
+def start_end_group_by_weekday(items):
+    """
+    Groups presence entries by weekday. Each weekday contains to dict with
+    to key start, end.
+    Start key contains a list of starts for given day.
+    End key contains a list of starts for given day.
+    The result look like this:
+    result = {
+        0: {'start': [start,start...], 'end': [end,end...]}
+        ...
+    }
+    """
+    result = {}
+    for date in items:
+        start = items[date]['start']
+        end = items[date]['end']
+        curr = result.setdefault(date.weekday(), {'start': [], 'end': []})
+        curr['start'].append(seconds_since_midnight(start))
+        curr['end'].append(seconds_since_midnight(end))
+    return result
+
+
+def str_to_time(str_time):
+    """
+    Convert string rep. of time to time.
+    """
+    import time
+    return time.strftime('%H:%M:%S', time.gmtime(str_time))
+
+
+def mean_start_end_by_weekday(grouped):
+    """
+    Calculate mean start/end time by day.
+    """
+
+    result = [
+        [
+            str_to_time(mean(item['start'])),
+            str_to_time(mean(item['end'])),
+        ]
+        for item in grouped.values()
+    ]
+
+    return result
+
+
 def seconds_since_midnight(time):
     """
     Calculates amount of seconds since midnight.

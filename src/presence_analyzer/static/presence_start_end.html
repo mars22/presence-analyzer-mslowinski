@@ -90,39 +90,39 @@
                     dropdown.show();
                     loading.hide();
                 });
+
+                function convertTimeToDate(time) {
+                    return new Date("1970-01-01T"+time);
+                }
+
                 $('#user_id').change(function(){
-                    var selected_user = $("#user_id").val();
-                    var chart_div = $('#chart_div');
+                    var selected_user = $("#user_id").val(),
+                        chart_div = $('#chart_div');
                     if(selected_user) {
                         loading.show();
                         chart_div.hide();
-                        
-                        // some dummy data, this should go from API
-                        var result = [
-                            ["Mon", new Date(1, 1, 1, 7, 37, 38), new Date(1, 1, 1, 15, 07, 14)],
-                            ["Tue", new Date(1, 1, 1, 8, 16, 23), new Date(1, 1, 1, 14, 01, 47)],
-                            ["Wed", new Date(1, 1, 1, 7, 00, 06), new Date(1, 1, 1, 13, 24, 12)],
-                            ["Thu", new Date(1, 1, 1, 7, 26, 32), new Date(1, 1, 1, 12, 40, 45)],
-                            ["Fri", new Date(1, 1, 1, 6, 53, 22), new Date(1, 1, 1, 12, 52, 09)]
-                        ] 
-
-                        var data = new google.visualization.DataTable();
-                        data.addColumn('string', 'Weekday');
-                        data.addColumn({ type: 'datetime', id: 'Start' });
-                        data.addColumn({ type: 'datetime', id: 'End' });
-                        data.addRows(result);
-                        var options = {
-                            hAxis: {title: 'Weekday'}
-                        };
-                        var formatter = new google.visualization.DateFormat({pattern: 'HH:mm:ss'});
-                        formatter.format(data, 1);
-                        formatter.format(data, 2);
-
-                        chart_div.show();
-                        loading.hide();
-                        var chart = new google.visualization.Timeline(chart_div[0]);
-                        chart.draw(data, options);
-
+                        $.getJSON("/api/v1/presence_start_end_per_weekday/"+selected_user, function(result) {
+                            var data = new google.visualization.DataTable(),
+                                convertedResults = [],
+                                options = { hAxis: {title: 'Weekday'}},
+                                formatter = new google.visualization.DateFormat({pattern: 'HH:mm:ss'}),
+                                chart = new google.visualization.Timeline(chart_div[0]);
+                            data.addColumn('string', 'Weekday');
+                            data.addColumn({ type: 'datetime', id: 'Start' });
+                            data.addColumn({ type: 'datetime', id: 'End' });
+                            $.each(result, function(i,item) {
+                                var day = item[0],
+                                    start = convertTimeToDate(item[1]),
+                                    end = convertTimeToDate(item[2]);
+                                convertedResults.push([day, start, end]);
+                            });
+                            data.addRows(convertedResults);
+                            formatter.format(data, 1);
+                            formatter.format(data, 2);
+                            chart_div.show();
+                            loading.hide();
+                            chart.draw(data, options);
+                        });
                     }
                 });
             });
@@ -134,7 +134,6 @@
     <div id="main">
         <div id="header">
             <h1>Presence analyzer</h1>
-            
             <ul>
                 <li><a href="/static/presence_weekday.html">Presence by weekday</a></li>
                 <li><a href="/static/mean_time_weekday.html">Presence mean time</a></li>
@@ -154,6 +153,5 @@
                 </div>
             </p>
         </div>
-
     </div>
 </body>
