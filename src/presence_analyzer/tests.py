@@ -36,6 +36,22 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
         """
         pass
 
+    def endpoint_should_return_404(self, url):
+        """
+        Asserts that endpoint return 404.
+        """
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 404)
+
+    def endpoint_return_json_data(self, url):
+        """
+        Asserts that endpoint returns json data then deserialize and return it.
+        """
+        resp = self.client.get(url)
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.content_type, 'application/json')
+        return json.loads(resp.data)
+
     def test_mainpage(self):
         """
         Test main page redirect.
@@ -48,28 +64,16 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
         """
         Test users listing.
         """
-        resp = self.client.get('/api/v1/users')
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.content_type, 'application/json')
-        data = json.loads(resp.data)
+        data = self.endpoint_return_json_data('/api/v1/users')
         self.assertEqual(len(data), 2)
         self.assertDictEqual(data[0], {'user_id': 10, 'name': 'User 10'})
-
-    def test_api_start_end_retun_404(self):
-        """
-        Test mean start and end presence return 404 if can't find user data.
-        """
-        resp = self.client.get('/api/v1/presence_start_end_per_weekday/0')
-        self.assertEqual(resp.status_code, 404)
 
     def test_api_start_end(self):
         """
         Test mean start and end presence of user per day.
         """
-        resp = self.client.get('/api/v1/presence_start_end_per_weekday/11')
-        self.assertEqual(resp.status_code, 200)
-        self.assertEqual(resp.content_type, 'application/json')
-        data = json.loads(resp.data)
+        data = self.endpoint_return_json_data(
+            '/api/v1/presence_start_end_per_weekday/11')
         self.assertEqual(
             data,
             [
@@ -80,6 +84,47 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
                 ['Fri', '13:16:56', '15:04:02'],
             ]
         )
+        self.endpoint_should_return_404(
+            '/api/v1/presence_start_end_per_weekday/0')
+
+    def test_api_mean_time_weekday(self):
+        """
+        Test mean presence time of given user grouped by weekday.
+        """
+        data = self.endpoint_return_json_data('/api/v1/mean_time_weekday/11')
+        self.assertEqual(
+            data,
+            [
+                ['Mon', 24123.0],
+                ['Tue', 16564.0],
+                ['Wed', 25321.0],
+                ['Thu', 22984.0],
+                ['Fri', 6426.0],
+                ['Sat', 0],
+                ['Sun', 0],
+            ]
+        )
+        self.endpoint_should_return_404('/api/v1/mean_time_weekday/0')
+
+    def test_api_presence_weekday(self):
+        """
+        Test total presence time of given user grouped by weekday.
+        """
+        data = self.endpoint_return_json_data('/api/v1/presence_weekday/11')
+        self.assertEqual(
+            data,
+            [
+                ['Weekday', 'Presence (s)'],
+                ['Mon', 24123],
+                ['Tue', 16564],
+                ['Wed', 25321],
+                ['Thu', 45968],
+                ['Fri', 6426],
+                ['Sat', 0],
+                ['Sun', 0],
+            ]
+        )
+        self.endpoint_should_return_404('/api/v1/presence_weekday/0')
 
 
 class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
@@ -136,8 +181,9 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
         Test mean start/end presence by workday.
         """
         data = utils.get_data()
-        grouped_by_day = utils.start_end_group_by_weekday(data[11])
-        mean_start_end_by_day = utils.mean_start_end_by_weekday(grouped_by_day)
+        grouped_by_weekday = utils.start_end_group_by_weekday(data[11])
+        mean_start_end_by_day = utils.mean_start_end_by_weekday(
+            grouped_by_weekday)
         self.assertEqual(
             mean_start_end_by_day,
             [
@@ -147,6 +193,57 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
                 ['09:53:22', '16:16:26'],
                 ['13:16:56', '15:04:02'],
             ]
+        )
+
+    def test_group_by_weekday(self):
+        """
+        Test grouping presence entries by weekday.
+        """
+        data = utils.get_data()
+        grouped_by_weekday = utils.group_by_weekday(data[11])
+        self.assertEqual(
+            grouped_by_weekday,
+            [
+                [24123],
+                [16564],
+                [25321],
+                [22969, 22999],
+                [6426],
+                [],
+                [],
+            ]
+        )
+
+    def test_seconds_since_midnight(self):
+        """
+        Test calculating amount of seconds from midnight.
+        """
+        self.assertEqual(
+            utils.seconds_since_midnight(datetime.time(0, 0, 3)),
+            3
+        )
+        self.assertEqual(
+            utils.seconds_since_midnight(datetime.time(1, 1, 1)),
+            3661
+        )
+
+    def test_interval(self):
+        """
+        Test calculating interval between datetime.time objects.
+        """
+        self.assertEqual(
+            utils.interval(
+                datetime.time(0, 0, 3),
+                datetime.time(0, 0, 5)
+            ),
+            2
+        )
+        self.assertEqual(
+            utils.interval(
+                datetime.time(0, 0, 5),
+                datetime.time(0, 0, 3)
+            ),
+            -2
         )
 
 
