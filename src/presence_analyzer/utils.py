@@ -117,7 +117,6 @@ def mean_start_end_by_weekday(grouped):
     """
     Calculate mean start/end time by day.
     """
-
     result = [
         [
             str_to_time(mean(item['start'])),
@@ -125,7 +124,6 @@ def mean_start_end_by_weekday(grouped):
         ]
         for item in grouped.values()
     ]
-
     return result
 
 
