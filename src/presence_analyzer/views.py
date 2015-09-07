@@ -4,7 +4,8 @@ Defines views.
 """
 
 import calendar
-from flask import redirect, abort
+from flask import abort, render_template
+from jinja2 import TemplateNotFound
 
 from presence_analyzer.main import app
 from presence_analyzer.utils import jsonify, get_data, mean, \
@@ -14,12 +15,16 @@ import logging
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 
-@app.route('/')
-def mainpage():
+@app.route('/', defaults={'template_name': 'presence_weekday'})
+@app.route('/<string:template_name>', methods=['GET'])
+def render_page(template_name):
     """
-    Redirects to front page.
+    Render templates by template_name.
     """
-    return redirect('/static/presence_weekday.html')
+    try:
+        return render_template(template_name + '.html')
+    except TemplateNotFound:
+        abort(404)
 
 
 @app.route('/api/v1/users', methods=['GET'])
@@ -35,6 +40,9 @@ def users_view():
     ]
 
 
+@app.route('/api/v1/mean_time_weekday/',
+           defaults={'user_id': 0},
+           methods=['GET'])
 @app.route('/api/v1/mean_time_weekday/<int:user_id>', methods=['GET'])
 @jsonify
 def mean_time_weekday_view(user_id):
@@ -55,6 +63,9 @@ def mean_time_weekday_view(user_id):
     return result
 
 
+@app.route('/api/v1/presence_weekday/',
+           defaults={'user_id': 0},
+           methods=['GET'])
 @app.route('/api/v1/presence_weekday/<int:user_id>', methods=['GET'])
 @jsonify
 def presence_weekday_view(user_id):
@@ -76,6 +87,9 @@ def presence_weekday_view(user_id):
     return result
 
 
+@app.route('/api/v1/presence_start_end_per_weekday/',
+           defaults={'user_id': 0},
+           methods=['GET'])
 @app.route('/api/v1/presence_start_end_per_weekday/<int:user_id>',
            methods=['GET'])
 @jsonify

@@ -52,13 +52,15 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
         self.assertEqual(resp.content_type, 'application/json')
         return json.loads(resp.data)
 
-    def test_mainpage(self):
+    def test_render_page(self):
         """
-        Test main page redirect.
+        Test render page by template name.
         """
-        resp = self.client.get('/')
-        self.assertEqual(resp.status_code, 302)
-        assert resp.headers['Location'].endswith('/presence_weekday.html')
+        resp = self.client.get("/")
+        self.assertEqual(resp.status_code, 200)
+        self.assertEqual(resp.content_type, 'text/html; charset=utf-8')
+
+        self.endpoint_should_return_404("/not_existing")
 
     def test_api_users(self):
         """
@@ -82,10 +84,12 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
                 ['Wed', '09:13:26', '16:15:27'],
                 ['Thu', '09:53:22', '16:16:26'],
                 ['Fri', '13:16:56', '15:04:02'],
+                ['Sat', '00:00:00', '00:00:00'],
+                ['Sun', '00:00:00', '00:00:00'],
             ]
         )
         self.endpoint_should_return_404(
-            '/api/v1/presence_start_end_per_weekday/0')
+            '/api/v1/presence_start_end_per_weekday/1')
 
     def test_api_mean_time_weekday(self):
         """
@@ -104,7 +108,7 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
                 ['Sun', 0],
             ]
         )
-        self.endpoint_should_return_404('/api/v1/mean_time_weekday/0')
+        self.endpoint_should_return_404('/api/v1/mean_time_weekday/1')
 
     def test_api_presence_weekday(self):
         """
@@ -124,7 +128,7 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
                 ['Sun', 0],
             ]
         )
-        self.endpoint_should_return_404('/api/v1/presence_weekday/0')
+        self.endpoint_should_return_404('/api/v1/presence_weekday/1')
 
 
 class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
@@ -173,6 +177,8 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
                 2: {'start': [33206], 'end': [58527]},
                 3: {'start': [37116, 34088], 'end': [60085, 57087]},
                 4: {'start': [47816], 'end': [54242]},
+                5: {'start': [], 'end': []},
+                6: {'start': [], 'end': []},
             }
         )
 
@@ -192,6 +198,8 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
                 ['09:13:26', '16:15:27'],
                 ['09:53:22', '16:16:26'],
                 ['13:16:56', '15:04:02'],
+                ['00:00:00', '00:00:00'],
+                ['00:00:00', '00:00:00'],
             ]
         )
 
