@@ -1,0 +1,702 @@
+diff --git a/bootstrap.py b/bootstrap.py
+new file mode 100644
+index 0000000..1b28969
+--- /dev/null
++++ b/bootstrap.py
+@@ -0,0 +1,170 @@
++##############################################################################
++#
++# Copyright (c) 2006 Zope Foundation and Contributors.
++# All Rights Reserved.
++#
++# This software is subject to the provisions of the Zope Public License,
++# Version 2.1 (ZPL).  A copy of the ZPL should accompany this distribution.
++# THIS SOFTWARE IS PROVIDED "AS IS" AND ANY AND ALL EXPRESS OR IMPLIED
++# WARRANTIES ARE DISCLAIMED, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
++# WARRANTIES OF TITLE, MERCHANTABILITY, AGAINST INFRINGEMENT, AND FITNESS
++# FOR A PARTICULAR PURPOSE.
++#
++##############################################################################
++"""Bootstrap a buildout-based project
++
++Simply run this script in a directory containing a buildout.cfg.
++The script accepts buildout command-line options, so you can
++use the -c option to specify an alternate configuration file.
++"""
++
++import os
++import shutil
++import sys
++import tempfile
++
++from optparse import OptionParser
++
++tmpeggs = tempfile.mkdtemp()
++
++usage = '''\
++[DESIRED PYTHON FOR BUILDOUT] bootstrap.py [options]
++
++Bootstraps a buildout-based project.
++
++Simply run this script in a directory containing a buildout.cfg, using the
++Python that you want bin/buildout to use.
++
++Note that by using --find-links to point to local resources, you can keep 
++this script from going over the network.
++'''
++
++parser = OptionParser(usage=usage)
++parser.add_option("-v", "--version", help="use a specific zc.buildout version")
++
++parser.add_option("-t", "--accept-buildout-test-releases",
++                  dest='accept_buildout_test_releases',
++                  action="store_true", default=False,
++                  help=("Normally, if you do not specify a --version, the "
++                        "bootstrap script and buildout gets the newest "
++                        "*final* versions of zc.buildout and its recipes and "
++                        "extensions for you.  If you use this flag, "
++                        "bootstrap and buildout will get the newest releases "
++                        "even if they are alphas or betas."))
++parser.add_option("-c", "--config-file",
++                  help=("Specify the path to the buildout configuration "
++                        "file to be used."))
++parser.add_option("-f", "--find-links",
++                  help=("Specify a URL to search for buildout releases"))
++
++
++options, args = parser.parse_args()
++
++######################################################################
++# load/install setuptools
++
++to_reload = False
++try:
++    import pkg_resources
++    import setuptools
++except ImportError:
++    ez = {}
++
++    try:
++        from urllib.request import urlopen
++    except ImportError:
++        from urllib2 import urlopen
++
++    # XXX use a more permanent ez_setup.py URL when available.
++    exec(urlopen('https://bitbucket.org/pypa/setuptools/raw/0.7.2/ez_setup.py'
++                ).read(), ez)
++    setup_args = dict(to_dir=tmpeggs, download_delay=0)
++    ez['use_setuptools'](**setup_args)
++
++    if to_reload:
++        reload(pkg_resources)
++    import pkg_resources
++    # This does not (always?) update the default working set.  We will
++    # do it.
++    for path in sys.path:
++        if path not in pkg_resources.working_set.entries:
++            pkg_resources.working_set.add_entry(path)
++
++######################################################################
++# Install buildout
++
++ws = pkg_resources.working_set
++
++cmd = [sys.executable, '-c',
++       'from setuptools.command.easy_install import main; main()',
++       '-mZqNxd', tmpeggs]
++
++find_links = os.environ.get(
++    'bootstrap-testing-find-links',
++    options.find_links or
++    ('http://downloads.buildout.org/'
++     if options.accept_buildout_test_releases else None)
++    )
++if find_links:
++    cmd.extend(['-f', find_links])
++
++setuptools_path = ws.find(
++    pkg_resources.Requirement.parse('setuptools')).location
++
++requirement = 'zc.buildout'
++version = options.version
++if version is None and not options.accept_buildout_test_releases:
++    # Figure out the most recent final version of zc.buildout.
++    import setuptools.package_index
++    _final_parts = '*final-', '*final'
++
++    def _final_version(parsed_version):
++        for part in parsed_version:
++            if (part[:1] == '*') and (part not in _final_parts):
++                return False
++        return True
++    index = setuptools.package_index.PackageIndex(
++        search_path=[setuptools_path])
++    if find_links:
++        index.add_find_links((find_links,))
++    req = pkg_resources.Requirement.parse(requirement)
++    if index.obtain(req) is not None:
++        best = []
++        bestv = None
++        for dist in index[req.project_name]:
++            distv = dist.parsed_version
++            if _final_version(distv):
++                if bestv is None or distv > bestv:
++                    best = [dist]
++                    bestv = distv
++                elif distv == bestv:
++                    best.append(dist)
++        if best:
++            best.sort()
++            version = best[-1].version
++if version:
++    requirement = '=='.join((requirement, version))
++cmd.append(requirement)
++
++import subprocess
++if subprocess.call(cmd, env=dict(os.environ, PYTHONPATH=setuptools_path)) != 0:
++    raise Exception(
++        "Failed to execute command:\n%s",
++        repr(cmd)[1:-1])
++
++######################################################################
++# Import and run buildout
++
++ws.add_entry(tmpeggs)
++ws.require(requirement)
++import zc.buildout.buildout
++
++if not [a for a in args if '=' not in a]:
++    args.append('bootstrap')
++
++# if -c was provided, we push it back into args for buildout' main function
++if options.config_file is not None:
++    args[0:0] = ['-c', options.config_file]
++
++zc.buildout.buildout.main(args)
++shutil.rmtree(tmpeggs)
+diff --git a/buildout.cfg b/buildout.cfg
+new file mode 100644
+index 0000000..371f373
+--- /dev/null
++++ b/buildout.cfg
+@@ -0,0 +1,108 @@
++[buildout]
++develop = .
++parts =
++    app
++    mkdirs
++    deploy_ini
++    deploy_cfg
++    debug_ini
++    debug_cfg
++    test
++    pep8
++    pylint
++
++newest = false
++versions = versions
++
++
++[versions]
++
++
++[server]
++host = 0.0.0.0
++logfiles = ${buildout:directory}/var/log
++
++
++[app]
++recipe = zc.recipe.egg
++eggs = 
++    presence_analyzer
++    Paste
++    PasteScript
++    PasteDeploy
++
++interpreter = python-console
++
++
++[mkdirs]
++recipe = z3c.recipe.mkdir
++paths =
++    ${server:logfiles}
++
++
++[deploy_ini]
++recipe = collective.recipe.template
++input = etc/deploy.ini.in
++output = ${buildout:parts-directory}/etc/${:outfile}
++outfile = deploy.ini
++app = presence_analyzer
++workers = 50
++spawn_if_under = 5
++max_requests = 200
++port = 8080
++
++
++[debug_ini]
++<= deploy_ini
++outfile = debug.ini
++app = presence_analyzer#debug
++workers = 1
++spawn_if_under = 1
++max_requests = 0
++port = 5000
++
++
++[deploy_cfg]
++recipe = collective.recipe.template
++input = inline:
++    # Deployment configuration
++    DEBUG = False
++    DATA_CSV = "${buildout:directory}/runtime/data/sample_data.csv"
++
++output = ${buildout:parts-directory}/etc/deploy.cfg
++
++
++[debug_cfg]
++recipe = collective.recipe.template
++input = inline:
++    # Debugging configuration
++    DEBUG = True
++    DATA_CSV = "${buildout:directory}/runtime/data/sample_data.csv"
++
++output = ${buildout:parts-directory}/etc/debug.cfg
++
++
++[test]
++recipe = pbp.recipe.noserunner
++eggs = presence_analyzer
++defaults = -v
++
++
++[pep8]
++recipe = zc.recipe.egg
++eggs = pep8
++entry-points = pep8check=pep8:_main
++dirs = ['${buildout:directory}/src/presence_analyzer']
++scripts = pep8
++initialization = sys.argv.extend(${pep8:dirs})
++
++
++[pylint]
++recipe = zc.recipe.egg
++eggs =
++    pylint
++    presence_analyzer
++scripts = pylint
++entry-points = pylint=pylint.lint:Run
++dirs = ['${buildout:directory}/src/presence_analyzer']
++initialization = sys.argv.extend(${pylint:dirs})
+diff --git a/etc/deploy.ini.in b/etc/deploy.ini.in
+new file mode 100644
+index 0000000..2d57697
+--- /dev/null
++++ b/etc/deploy.ini.in
+@@ -0,0 +1,43 @@
++#
++# Configuration for use with paster/WSGI
++#
++
++
++[app:main]
++use = egg:${:app}
++
++[server:main]
++use = egg:Paste#http
++host = ${server:host}
++port = ${:port}
++threadpool_workers = ${:workers}
++threadpool_spawn_if_under = ${:spawn_if_under}
++threadpool_max_requests = ${:max_requests}
++
++
++#
++# Logging configuration
++#
++
++[loggers]
++keys = root
++
++[handlers]
++keys = console
++
++[formatters]
++keys = generic
++
++[logger_root]
++level = INFO
++handlers = console
++
++[handler_console]
++class = StreamHandler
++args = (sys.stderr,)
++level = NOTSET
++formatter = generic
++
++[formatter_generic]
++format = %(asctime)s %(levelname)s [%(name)s] %(message)s
++
+diff --git a/setup.py b/setup.py
+index 5c68236..11faaf8 100644
+--- a/setup.py
++++ b/setup.py
+@@ -2,7 +2,7 @@ from setuptools import setup, find_packages
+ import os
+ 
+ name = "presence_analyzer"
+-version = "0.1.0"
++version = "0.2.2"
+ 
+ 
+ def read(*rnames):
+@@ -29,5 +29,11 @@ setup(
+         'Flask',
+     ],
+     entry_points="""
++    [console_scripts]
++    flask-ctl = presence_analyzer.script:run
++
++    [paste.app_factory]
++    main = presence_analyzer.script:make_app
++    debug = presence_analyzer.script:make_debug
+     """,
+ )
+diff --git a/src/presence_analyzer/__init__.py b/src/presence_analyzer/__init__.py
+index fa0a5ac..876c7bd 100644
+--- a/src/presence_analyzer/__init__.py
++++ b/src/presence_analyzer/__init__.py
+@@ -2,3 +2,5 @@
+ """
+ Presence analyzer.
+ """
++from .main import app
++from . import views
+diff --git a/src/presence_analyzer/main.py b/src/presence_analyzer/main.py
+index 5390b33..3d0cd98 100644
+--- a/src/presence_analyzer/main.py
++++ b/src/presence_analyzer/main.py
+@@ -2,17 +2,7 @@
+ """
+ Flask app initialization.
+ """
+-import os.path
+ from flask import Flask
+ 
+ 
+-MAIN_DATA_CSV = os.path.join(
+-    os.path.dirname(__file__), '..', '..', 'runtime', 'data', 'sample_data.csv'
+-)
+-
+-
+ app = Flask(__name__)  # pylint: disable=invalid-name
+-app.config.update(
+-    DEBUG = True,
+-    DATA_CSV = MAIN_DATA_CSV
+-)
+diff --git a/src/presence_analyzer/script.py b/src/presence_analyzer/script.py
+new file mode 100644
+index 0000000..f669740
+--- /dev/null
++++ b/src/presence_analyzer/script.py
+@@ -0,0 +1,113 @@
++# -*- coding: utf-8 -*-
++"""Startup utilities"""
++# pylint:skip-file
++
++import os
++import sys
++from functools import partial
++
++import paste.script.command
++import werkzeug.script
++
++etc = partial(os.path.join, 'parts', 'etc')
++
++DEPLOY_INI = etc('deploy.ini')
++DEPLOY_CFG = etc('deploy.cfg')
++
++DEBUG_INI = etc('debug.ini')
++DEBUG_CFG = etc('debug.cfg')
++
++_buildout_path = __file__
++for i in range(2 + __name__.count('.')):
++    _buildout_path = os.path.dirname(_buildout_path)
++
++abspath = partial(os.path.join, _buildout_path)
++del _buildout_path
++
++
++# bin/paster serve parts/etc/deploy.ini
++def make_app(global_conf={}, config=DEPLOY_CFG, debug=False):
++    from presence_analyzer import app
++    app.config.from_pyfile(abspath(config))
++    app.debug = debug
++    return app
++
++
++# bin/paster serve parts/etc/debug.ini
++def make_debug(global_conf={}, **conf):
++    from werkzeug.debug import DebuggedApplication
++    app = make_app(global_conf, config=DEBUG_CFG, debug=True)
++    return DebuggedApplication(app, evalex=True)
++
++
++# bin/flask-ctl shell
++def make_shell():
++    """Interactive Flask Shell"""
++    from flask import request
++    app = make_app()
++    http = app.test_client()
++    reqctx = app.test_request_context
++    return locals()
++
++
++def _serve(action, debug=False, dry_run=False):
++    """Build paster command from 'action' and 'debug' flag."""
++    if debug:
++        config = DEBUG_INI
++    else:
++        config = DEPLOY_INI
++    argv = ['bin/paster', 'serve', config]
++    if action in ('start', 'restart'):
++        argv += [action, '--daemon']
++    elif action in ('', 'fg', 'foreground'):
++        argv += ['--reload']
++    else:
++        argv += [action]
++    # Print the 'paster' command
++    print ' '.join(argv)
++    if dry_run:
++        return
++    # Configure logging and lock file
++    if action in ('start', 'stop', 'restart', 'status'):
++        argv += [
++            '--log-file', abspath('var', 'log', 'paster.log'),
++            '--pid-file', abspath('var', 'log', '.paster.pid'),
++        ]
++    sys.argv = argv[:2] + [abspath(config)] + argv[3:]
++    # Run the 'paster' command
++    paste.script.command.run()
++
++
++# bin/flask-ctl ...
++def run():
++    action_shell = werkzeug.script.make_shell(make_shell, make_shell.__doc__)
++
++    # bin/flask-ctl serve [fg|start|stop|restart|status]
++    def action_serve(action=('a', 'start'), dry_run=False):
++        """Serve the application.
++
++        This command serves a web application that uses a paste.deploy
++        configuration file for the server and application.
++
++        Options:
++         - 'action' is one of [fg|start|stop|restart|status]
++         - '--dry-run' print the paster command and exit
++        """
++        _serve(action, debug=False, dry_run=dry_run)
++
++    # bin/flask-ctl debug [fg|start|stop|restart|status]
++    def action_debug(action=('a', 'start'), dry_run=False):
++        """Serve the debugging application."""
++        _serve(action, debug=True, dry_run=dry_run)
++
++    # bin/flask-ctl status
++    def action_status(dry_run=False):
++        """Status of the application."""
++        _serve('status', dry_run=dry_run)
++
++    # bin/flask-ctl stop
++    def action_stop(dry_run=False):
++        """Stop the application."""
++        _serve('stop', dry_run=dry_run)
++
++    werkzeug.script.run()
+diff --git a/src/presence_analyzer/static/presence_start_end.html b/src/presence_analyzer/static/presence_start_end.html
+new file mode 100644
+index 0000000..3ea8cc5
+--- /dev/null
++++ b/src/presence_analyzer/static/presence_start_end.html
+@@ -0,0 +1,159 @@
++<!doctype html>
++<html lang=en>
++<head>
++    <meta charset=utf-8>
++    <title>Presence analyzer</title>
++    <meta name="keywords" content="" />
++    <meta name="description" content=""/>
++    <meta name="author" content="STX Next sp. z o.o."/>
++    <meta name="viewport" content="width=device-width; initial-scale=1.0">
++    
++    <link href="/static/css/normalize.css" media="all" rel="stylesheet" type="text/css" />
++    <style type="text/css">
++        body {
++            font-family: latoregular, Helvetica, Arial;
++            background-color: #EEE;
++        }
++        #main {
++            width: 800px;
++            margin: 2em auto;
++            padding: 0 2em;
++        }
++        #content {
++            padding: 0 2em;
++            border: 1px solid #AAA;
++            background-color: #FFF;
++            
++            border: 1px solid black;
++            clear: both;
++            padding: 0 1em;
++        }
++        #chart_div {
++            width: 750px;
++            height: 750px;
++        }
++
++        #header ul {
++            list-style: none;
++            padding: 0;
++            margin: 0;
++        }
++        
++        #header li {
++            float: left;
++            border: 1px solid #bbb;
++            border-bottom-width: 0;
++            margin: 0;
++        }
++        
++        #header a {
++            text-decoration: none;
++            display: block;
++            background: #eee;
++            padding: 0.24em 1em;
++            color: #00c;
++            width: 12em;
++            text-align: center;
++        }
++        
++        #header a:hover {
++            background: #ddf;
++        }
++        
++        #header #selected {
++            border-color: black;
++        }
++        
++        #header #selected a {
++            position: relative;
++            top: 1px;
++            background: white;
++            color: black;
++            font-weight: bold;
++        }
++    </style>
++
++    <script src="/static/js/jquery.min.js"></script>
++    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
++    <script type="text/javascript">
++        google.load("visualization", "1", {packages:["corechart", "timeline"], 'language': 'pl'});
++    </script>
++    <script type="text/javascript">
++        (function($) {
++            $(document).ready(function(){
++                var loading = $('#loading');
++                $.getJSON("/api/v1/users", function(result) {
++                    var dropdown = $("#user_id");
++                    $.each(result, function(item) {
++                        dropdown.append($("<option />").val(this.user_id).text(this.name));
++                    });
++                    dropdown.show();
++                    loading.hide();
++                });
++                $('#user_id').change(function(){
++                    var selected_user = $("#user_id").val();
++                    var chart_div = $('#chart_div');
++                    if(selected_user) {
++                        loading.show();
++                        chart_div.hide();
++                        
++                        // some dummy data, this should go from API
++                        var result = [
++                            ["Mon", new Date(1, 1, 1, 7, 37, 38), new Date(1, 1, 1, 15, 07, 14)],
++                            ["Tue", new Date(1, 1, 1, 8, 16, 23), new Date(1, 1, 1, 14, 01, 47)],
++                            ["Wed", new Date(1, 1, 1, 7, 00, 06), new Date(1, 1, 1, 13, 24, 12)],
++                            ["Thu", new Date(1, 1, 1, 7, 26, 32), new Date(1, 1, 1, 12, 40, 45)],
++                            ["Fri", new Date(1, 1, 1, 6, 53, 22), new Date(1, 1, 1, 12, 52, 09)]
++                        ] 
++
++                        var data = new google.visualization.DataTable();
++                        data.addColumn('string', 'Weekday');
++                        data.addColumn({ type: 'datetime', id: 'Start' });
++                        data.addColumn({ type: 'datetime', id: 'End' });
++                        data.addRows(result);
++                        var options = {
++                            hAxis: {title: 'Weekday'}
++                        };
++                        var formatter = new google.visualization.DateFormat({pattern: 'HH:mm:ss'});
++                        formatter.format(data, 1);
++                        formatter.format(data, 2);
++
++                        chart_div.show();
++                        loading.hide();
++                        var chart = new google.visualization.Timeline(chart_div[0]);
++                        chart.draw(data, options);
++
++                    }
++                });
++            });
++        })(jQuery);
++    </script>
++</head>
++
++<body>
++    <div id="main">
++        <div id="header">
++            <h1>Presence analyzer</h1>
++            
++            <ul>
++                <li><a href="/static/presence_weekday.html">Presence by weekday</a></li>
++                <li><a href="/static/mean_time_weekday.html">Presence mean time</a></li>
++                <li id="selected"><a href="/static/presence_start_end.html">Presence start-end</a></li>
++            </ul>
++        </div>
++        <div id="content">
++            <h2>Presence start-end weekday</h2>
++            <p>
++                <select id="user_id" style="display: none">
++                    <option value="">--</option>
++                </select>
++                <div id="chart_div" style="display: none">
++                </div>
++                <div id="loading">
++                    <img src="/static/img/loading.gif" />
++                </div>
++            </p>
++        </div>
++
++    </div>
++</body>
+diff --git a/src/run.py b/src/run.py
+deleted file mode 100644
+index 759abb8..0000000
+--- a/src/run.py
++++ /dev/null
+@@ -1,16 +0,0 @@
+-# -*- coding: utf-8 -*-
+-"""
+-Presence analyzer web app.
+-"""
+-import os.path
+-import logging.config
+-
+-from presence_analyzer.main import app
+-import presence_analyzer.views
+-
+-
+-if __name__ == "__main__":
+-    ini_filename = os.path.join(os.path.dirname(__file__),
+-                                '..', 'runtime', 'debug.ini')
+-    logging.config.fileConfig(ini_filename, disable_existing_loggers=False)
+-    app.run(host='0.0.0.0')
