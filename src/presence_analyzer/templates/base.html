@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang=en>
+<head>
+    <meta charset=utf-8>
+    <title>Presence analyzer</title>
+    <meta name="keywords" content="" />
+    <meta name="description" content=""/>
+    <meta name="author" content="STX Next sp. z o.o."/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    {% block css %}
+        <link href="{{ url_for('static', filename='css/normalize.css') }}" media="all" rel="stylesheet" type="text/css" />
+        <link href="{{ url_for('static', filename='css/site.css') }}" media="all" rel="stylesheet" type="text/css" />
+    {% endblock %}
+    <script src="{{ url_for('static', filename='js/jquery.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script type="text/javascript" src="https://www.google.com/jsapi"></script>
+    {% block scripts %}
+    {% endblock %}
+</head>
+<body>
+    <div id="main">
+        <div id="header">
+            <h1>Presence analyzer</h1>
+            <ul>
+                <li><a href="{{ url_for('render_page', template_name='presence_weekday') }}">Presence by weekday</a></li>
+                <li><a href="{{ url_for('render_page', template_name='mean_time_weekday') }}">Presence mean time</a></li>
+                <li><a href="{{ url_for('render_page', template_name='presence_start_end') }}">Presence start-end</a></li>
+            </ul>
+        </div>
+        <div id="content">
+            <h2>{% block title %}{% endblock %}</h2>
+            <p>
+                <select id="user_id" style="display: none" data-api-url="{{ url_for('users_view') }}">
+                    <option value="">--</option>
+                </select>
+                <div id="loading">
+                    <img src="{{ url_for('static', filename='img/loading.gif') }}" />
+                </div>
+                <div id="chart_div" style="display: none" data-api-url="{% block apiurl %}{% endblock %}">
+                </div>
+            </p>
+        </div>
+    </div>
+</body>
+</html>

@@ -89,17 +89,12 @@ def start_end_group_by_weekday(items):
     to key start, end.
     Start key contains a list of starts for given day.
     End key contains a list of starts for given day.
-    The result look like this:
-    result = {
-        0: {'start': [start,start...], 'end': [end,end...]}
-        ...
-    }
     """
-    result = {}
+    result = {i: {'start': [], 'end': []} for i in range(7)}
     for date in items:
         start = items[date]['start']
         end = items[date]['end']
-        curr = result.setdefault(date.weekday(), {'start': [], 'end': []})
+        curr = result[date.weekday()]
         curr['start'].append(seconds_since_midnight(start))
         curr['end'].append(seconds_since_midnight(end))
     return result
