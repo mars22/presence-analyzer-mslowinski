@@ -35,7 +35,11 @@
                 <div id="loading">
                     <img src="${url_for('static', filename='img/loading.gif')}" />
                 </div>
+                <img id="avatar" style="display: none"/>
                 <div id="chart_div" style="display: none" data-api-url="<%block name='apiurl'/>">
+                </div>
+                <div id="no_data" style="display: none">
+                    <h5>No data for selected user.</h5>
                 </div>
             </p>
         </div>

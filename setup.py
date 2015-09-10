@@ -26,11 +26,17 @@ setup(
     zip_safe=False,
     install_requires=[
         'setuptools',
+        'Paste',
+        'PasteScript',
+        'PasteDeploy',
         'Flask',
+        'Flask-Mako',
+        'lxml',
     ],
     entry_points="""
     [console_scripts]
     flask-ctl = presence_analyzer.script:run
+    download-users = presence_analyzer.script:download_users
 
     [paste.app_factory]
     main = presence_analyzer.script:make_app

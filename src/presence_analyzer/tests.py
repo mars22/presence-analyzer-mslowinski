@@ -8,33 +8,37 @@ import os.path
 import json
 import datetime
 import unittest
+from functools import partial
 
 from presence_analyzer import main, views, utils
 
 
-TEST_DATA_CSV = os.path.join(
-    os.path.dirname(__file__), '..', '..', 'runtime', 'data', 'test_data.csv'
-)
-
-
-# pylint: disable=maybe-no-member, too-many-public-methods
-class PresenceAnalyzerViewsTestCase(unittest.TestCase):
+class PresenceAnalyzerTestCase(unittest.TestCase):
     """
-    Views tests.
+    Base class for Presence Analyzer tests.
     """
-
     def setUp(self):
         """
         Before each test, set up a environment.
         """
-        main.app.config.update({'DATA_CSV': TEST_DATA_CSV})
-        self.client = main.app.test_client()
+        runtime_data = partial(os.path.join, 'runtime', 'data')
+        main.app.config.update({
+            'DATA_CSV': runtime_data('test_data.csv'),
+            'USERS_XML': runtime_data('test_users.xml'),
+        })
 
-    def tearDown(self):
+
+# pylint: disable=maybe-no-member, too-many-public-methods
+class PresenceAnalyzerViewsTestCase(PresenceAnalyzerTestCase):
+    """
+    Views tests.
+    """
+    def setUp(self):
         """
-        Get rid of unused objects after each test.
+        Before each test, set up a environment.
         """
-        pass
+        super(PresenceAnalyzerViewsTestCase, self).setUp()
+        self.client = main.app.test_client()
 
     def endpoint_should_return_404(self, url):
         """
@@ -67,8 +71,16 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
         Test users listing.
         """
         data = self.endpoint_return_json_data('/api/v1/users')
-        self.assertEqual(len(data), 2)
-        self.assertDictEqual(data[0], {'user_id': 10, 'name': 'User 10'})
+        self.assertEqual(len(data), 3)
+        self.assertDictEqual(
+            data[0],
+            {
+                'user_id': 10,
+                'name': 'Maciej Z.',
+                'avatar_url': 'https://intranet.stxnext.pl:443'
+                              '/api/images/users/10',
+            }
+        )
 
     def test_api_start_end(self):
         """
@@ -131,23 +143,10 @@ class PresenceAnalyzerViewsTestCase(unittest.TestCase):
         self.endpoint_should_return_404('/api/v1/presence_weekday/1')
 
 
-class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
+class PresenceAnalyzerUtilsTestCase(PresenceAnalyzerTestCase):
     """
     Utility functions tests.
     """
-
-    def setUp(self):
-        """
-        Before each test, set up a environment.
-        """
-        main.app.config.update({'DATA_CSV': TEST_DATA_CSV})
-
-    def tearDown(self):
-        """
-        Get rid of unused objects after each test.
-        """
-        pass
-
     def test_get_data(self):
         """
         Test parsing of CSV file.
@@ -161,6 +160,21 @@ class PresenceAnalyzerUtilsTestCase(unittest.TestCase):
         self.assertEqual(
             data[10][sample_date]['start'],
             datetime.time(9, 39, 5)
+        )
+
+    def test_get_users(self):
+        """
+        Test parsing of Users XML file.
+        """
+        data = utils.get_users()
+        self.assertItemsEqual(data.keys(), [10, 11, 141])
+        self.assertDictEqual(
+            data[10],
+            {
+                'avatar_url': 'https://intranet.stxnext.pl:443'
+                              '/api/images/users/10',
+                'name': 'Maciej Z.',
+            }
         )
 
     def test_start_end_grouped_by_weekday(self):

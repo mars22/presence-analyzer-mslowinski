@@ -9,8 +9,15 @@ from flask_mako import render_template
 from mako.exceptions import TopLevelLookupException
 
 from presence_analyzer.main import app
-from presence_analyzer.utils import jsonify, get_data, mean, \
-    group_by_weekday, start_end_group_by_weekday, mean_start_end_by_weekday
+from presence_analyzer.utils import (
+    jsonify,
+    get_data,
+    mean,
+    group_by_weekday,
+    start_end_group_by_weekday,
+    mean_start_end_by_weekday,
+    get_users
+)
 
 import logging
 log = logging.getLogger(__name__)  # pylint: disable=invalid-name
@@ -34,10 +41,10 @@ def users_view():
     """
     Users listing for dropdown.
     """
-    data = get_data()
+    data = get_users()
     return [
-        {'user_id': i, 'name': 'User {0}'.format(str(i))}
-        for i in data.keys()
+        {'user_id': k, 'name': v['name'], 'avatar_url': v['avatar_url']}
+        for k, v in data.items()
     ]
 
 
