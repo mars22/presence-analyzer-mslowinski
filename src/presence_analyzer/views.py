@@ -4,8 +4,9 @@ Defines views.
 """
 
 import calendar
-from flask import abort, render_template
-from jinja2 import TemplateNotFound
+from flask import abort
+from flask_mako import render_template
+from mako.exceptions import TopLevelLookupException
 
 from presence_analyzer.main import app
 from presence_analyzer.utils import jsonify, get_data, mean, \
@@ -23,7 +24,7 @@ def render_page(template_name):
     """
     try:
         return render_template(template_name + '.html')
-    except TemplateNotFound:
+    except TopLevelLookupException:
         abort(404)
 
 

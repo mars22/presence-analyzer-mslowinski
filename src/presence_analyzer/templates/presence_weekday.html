@@ -1,10 +1,10 @@
-{% extends "base.html" %}
-{% block scripts %}
-<script src="{{ url_for('static', filename='js/weekday.js') }}"></script>
-{% endblock %}
-{% block title %}
-Presence by weekday
-{% endblock %}
-{% block apiurl %}
-{{ url_for('presence_weekday_view') }}
-{% endblock %}
+<%inherit file="base.html"/>
+<%block name="scripts">
+    <script src="${url_for('static', filename='js/weekday.js')}"></script>
+</%block>
+<%block name="title">
+    Presence by weekday
+</%block>
+<%block name="apiurl">
+    ${url_for('presence_weekday_view')}
+</%block>
