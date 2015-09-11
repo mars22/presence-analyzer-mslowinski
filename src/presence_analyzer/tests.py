@@ -7,6 +7,7 @@ from __future__ import unicode_literals
 import os.path
 import json
 import datetime
+import time
 import unittest
 from functools import partial
 
@@ -267,6 +268,58 @@ class PresenceAnalyzerUtilsTestCase(PresenceAnalyzerTestCase):
             ),
             -2
         )
+
+    def test_cache(self):
+        """
+        Test cache decorator.
+        """
+        @utils.cache(1000)
+        def stub():
+            stub.was_called = True
+            return 200
+
+        self.assertEqual(stub(), 200)
+        self.assertTrue(stub.was_called)
+        stub.was_called = False
+        self.assertEqual(stub(), 200)
+        self.assertFalse(stub.was_called)
+
+    def test_cache_timeout(self):
+        """
+        Test cache decorator timeout.
+        """
+        @utils.cache(2)
+        def stub():
+            """Stub method."""
+            return 200 + stub.i
+
+        stub.i = 1
+        self.assertEqual(stub(), 201)
+        time.sleep(3)
+        stub.i = 2
+        self.assertEqual(stub(), 202)
+        stub.i = 3
+        self.assertEqual(stub(), 202)
+
+    def test_cache_diffrent_functions(self):
+        """
+        Test cache decorator can cache results of diffrent functions.
+        """
+        @utils.cache(2)
+        def stub1():
+            """Stub method."""
+            return 200
+
+        @utils.cache(2)
+        def stub2():
+            """Stub method."""
+            return [1, 2]
+
+        self.assertEqual(stub1(), 200)
+        self.assertEqual(stub2(), [1, 2])
+        time.sleep(4)
+        self.assertEqual(stub1(), 200)
+        self.assertEqual(stub2(), [1, 2])
 
 
 def suite():
