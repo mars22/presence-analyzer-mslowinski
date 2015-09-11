@@ -2,11 +2,13 @@
 """
 Helper functions used in views.
 """
+from __future__ import unicode_literals
 
 import csv
 from json import dumps
 from functools import wraps
 from datetime import datetime
+from lxml.etree import parse
 
 from flask import Response
 
@@ -52,7 +54,7 @@ def get_data():
     """
     data = {}
     with open(app.config['DATA_CSV'], 'r') as csvfile:
-        presence_reader = csv.reader(csvfile, delimiter=',')
+        presence_reader = csv.reader(csvfile, delimiter=str(','))
         for i, row in enumerate(presence_reader):
             if len(row) != 4:
                 # ignore header and footer lines
@@ -67,6 +69,51 @@ def get_data():
                 log.debug('Problem with line %d: ', i, exc_info=True)
 
             data.setdefault(user_id, {})[date] = {'start': start, 'end': end}
+
+    return data
+
+
+def _get_server_url(element):
+    """
+    Extract server url from xml element.
+    """
+    protocol = element.find('protocol').text
+    host = element.find('host').text
+    port = element.find('port').text
+    return '{0}://{1}:{2}'.format(protocol, host, port)
+
+
+def get_users():
+    """
+    Extracts users data from XML file.
+
+    It creates structure like this:
+    data = {
+        'user_id': {
+            'name': 'User Name',
+            'avatar_url': 'http://.....'
+        }
+    }
+    """
+    data = {}
+    xml = parse(app.config['USERS_XML'])
+    root = xml.getroot()
+    server_info = root.find('server')
+    users = root.find('users')
+    server_url = _get_server_url(server_info)
+    for i, user_elem in enumerate(users):
+        try:
+            user_id = int(user_elem.attrib['id'])
+            name = user_elem.find('name').text
+            avatar = user_elem.find('avatar').text
+            avatar_url = '{0}{1}'.format(server_url, avatar)
+        except (KeyError, AttributeError):
+            log.debug('Problem with line %d: ', i, exc_info=True)
+
+        data[user_id] = {
+            'name': unicode(name),
+            'avatar_url': unicode(avatar_url),
+        }
 
     return data
 

@@ -25,6 +25,21 @@ abspath = partial(os.path.join, _buildout_path)
 del _buildout_path
 
 
+def download_users():
+    """
+    Download users.xml file.
+    """
+    import urllib2
+    from flask.config import Config
+    config = Config(etc())
+    config.from_pyfile("deploy.cfg")
+    response = urllib2.urlopen(config['USERS_URL'])
+    users_xml = os.path.join('runtime', 'data', 'users.xml')
+    if response.code == 200:
+        with open(users_xml, 'w') as f:
+            f.write(response.read())
+
+
 # bin/paster serve parts/etc/deploy.ini
 def make_app(global_conf={}, config=DEPLOY_CFG, debug=False):
     from presence_analyzer import app
