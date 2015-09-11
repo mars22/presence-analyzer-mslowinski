@@ -7,9 +7,10 @@ from __future__ import unicode_literals
 import csv
 from json import dumps
 from functools import wraps
-from datetime import datetime
+from datetime import datetime, timedelta
 from lxml.etree import parse
-
+from collections import deque
+from threading import Lock
 from flask import Response
 
 from presence_analyzer.main import app
@@ -34,6 +35,34 @@ def jsonify(function):
     return inner
 
 
+def cache(cache_time):
+    """
+    Cache result of func for period of cache_time (in s).
+    """
+    def decorator(func):
+        fn_name = func.__name__
+        cache = {}
+        cache.setdefault(fn_name, {
+            'memo': deque(maxlen=1),
+            'valid': deque(maxlen=1),
+        })
+        lock = Lock()
+
+        @wraps(func)
+        def wraper():
+            now = datetime.now()
+            valid_to = now + timedelta(0, cache_time)
+            with lock:
+                if not cache[fn_name]['memo'] or \
+                   now > cache[fn_name]['valid'][0]:
+                    cache[fn_name]['valid'].append(valid_to)
+                    cache[fn_name]['memo'].append(func())
+                return cache[fn_name]['memo'][0]
+        return wraper
+    return decorator
+
+
+@cache(600)
 def get_data():
     """
     Extracts presence data from CSV file and groups it by user_id.
